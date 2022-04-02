@@ -1,0 +1,92 @@
+@font-face{
+  font-family: "PT Mono";
+  src: local("PT Mono"), local("PTMono-Regular"), url(./Resources/fonts/PTMono-Regular.woff2) format("woff2");
+  font-display:swap;
+  font-weight:400;
+  font-style:normal
+}
+
+@font-face{
+  font-family:"PT Mono";
+  src: local("PT Mono Bold"), local("PTMono-Bold"), url(./Resources/fonts/PTMono-Bold.woff2) format("woff2");
+  font-display:swap;
+  font-weight:700;
+  font-style:normal
+}
+
+body {
+  margin: 20px;
+  font-family: "PT Mono", monospace;
+  background-color: black;
+  font-weight: 400;
+  color: white;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+.green {
+  color: #44f1a6;
+  font-weight: 700;
+}
+
+.red {
+  color: #ed7777;
+  font-weight: 700;
+}
+
+.bold {
+  font-weight: 700;
+}
+
+.button {
+  background-color: #182922;
+  color: #44f1a6;
+  padding: 6px 14px;
+  border: 2px solid gray;
+  border-radius: 4px;
+  border-color: #44f1a6;
+  font-weight: 700;
+}
+
+.link {
+  margin-left: 20px;
+}
+
+.link:hover {
+  color: #44f1a6;
+}
+
+.btn-primary:hover,.btn-primary:focus,.btn-primary:active, 
+.btn-primary:active:focus:not(:disabled):not(.disabled),
+.btn-primary:disabled, .disabled,
+.btn:focus, .btn:active, .btn:hover{
+  box-shadow: none!important;
+  cursor: default !important;
+  outline: 0;
+  color: black;
+  background-color: #44f1a6;
+  border-color: #44f1a6;
+}
+
+.upload:hover .button {
+  background-color: #44f1a6;
+  color: black;
+}
+
+.upload {
+  position: relative;
+  overflow: hidden;
+  display: inline-block;
+}
+
+.upload input[type=file] {
+  font-size: 100px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+}
