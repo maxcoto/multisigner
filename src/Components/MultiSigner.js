@@ -37,7 +37,7 @@ const MultiSigner = (props) => {
   }
   
   const unsignedDrop = async (event) => {
-    await setResult({ color: "", msg: "" });
+    setResult({ color: "", msg: "" });
     var file = event.target.files[0];
 
     const callback = async (buffer) => {
@@ -71,20 +71,17 @@ const MultiSigner = (props) => {
         // lease: decode txn.lease
       };
 
-      const json = await jsonStore(uploaded.hash, transaction);
+      await jsonStore(uploaded.hash, transaction);
       setHash(uploaded.hash);
       setTxn(transaction);
-
-      console.log("unsigned txn: ", json);      
-      history.push("/" + uploaded.hash);
+      history.push("/?" + uploaded.hash);
     };
 
     readFile(file, callback);  
   };
 
   const signatureDrop = async (event) => {
-    console.log("drop");
-    await setResult({ color: "red", msg: "" });
+    setResult({ color: "red", msg: "" });
     var file = event.target.files[0];
 
     const callback = async (buffer) => {
@@ -92,7 +89,7 @@ const MultiSigner = (props) => {
         var decoded = decode(buffer);
         var subsigs = decoded.msig.subsig;
       } catch(error) {
-        await setResult({ color: "red", msg: "Wrong file." });
+        setResult({ color: "red", msg: "Wrong file." });
         return;
       }
 
@@ -104,13 +101,12 @@ const MultiSigner = (props) => {
       }
 
       if(txn.signed.includes(signer)){
-        console.log("here??");
-        await setResult({ color: "red", msg: "The signer has already signed this transaction" });
+        setResult({ color: "red", msg: "The signer has already signed this transaction" });
         return;
       }
       
       if(!txn.signers.includes(signer)){
-        await setResult({ color: "red", msg: "The signer is not included in the allowed signers list" });
+        setResult({ color: "red", msg: "The signer is not included in the allowed signers list" });
         return;
       }
       
@@ -120,7 +116,6 @@ const MultiSigner = (props) => {
 
       const json = await jsonStore(hash, cpy);
       setTxn(json);
-      console.log("signed txn: ", json);
     };
 
     readFile(file, callback);
@@ -131,7 +126,7 @@ const MultiSigner = (props) => {
   };
   
   const send = async () => {
-    await setResult({ color: "", msg: "" });
+    setResult({ color: "", msg: "" });
     setProcessing(true);
 
     const txn = await jsonLoad(hash);
@@ -149,9 +144,7 @@ const MultiSigner = (props) => {
       var cpy = {...txn};
       cpy.sent = true;
 
-      const json = await jsonStore(hash);
-      console.log("sent txn", json);
-
+      await jsonStore(hash);
       const msg = "Transaction " + response.txId + " confirmed in round " + response["confirmed-round"];
       setResult({ color: "green", msg: msg });
 
