@@ -27,11 +27,9 @@ const MultiSigner = (props) => {
   
   const fromBase64 = (arg) => {
     if(arg[0] === 0){
-      var str = "";
-      for(let i=0; i<arg.length; i++){
-        str += arg[i].toString()
-      }
-      return parseInt(str);
+      const buffer = Buffer.from(arg);
+      const uint = buffer.readUIntBE(0, arg.length);
+      return uint;
     }
     return Buffer.from(arg, "base64").toString();
   }
@@ -206,7 +204,7 @@ const MultiSigner = (props) => {
             <div>sender:</div>
             <div style={{marginLeft: "20px"}}> - {txn.address}</div>
             <br />
-            <div>signers:</div>
+            <div>allowed signers:</div>
             {txn.signers.map((signer, index) => (
               <div key={index} style={{marginLeft: "20px"}}>
                 <span>- {signer} </span>
