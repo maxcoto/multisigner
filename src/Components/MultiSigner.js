@@ -49,11 +49,16 @@ const MultiSigner = (props) => {
       
       const uploaded = await uploadFile(file);
 
+      var appArgs = null;
+      if(txn.appArgs){
+        appArgs = txn.appArgs.map((arg) => fromBase64(arg))
+      }
+
       const transaction = {
         sent: false,
         unsigned: { bin: Array.from(buffer), url: uploaded.url },
         appIndex: txn.appIndex,
-        appArgs: txn.appArgs.map((arg) => fromBase64(arg)),
+        appArgs: appArgs,
         fee: microToFloat(txn.fee),
         address: algosdk.encodeAddress(txn.from.publicKey),
         threshold: decoded.msig.thr,
@@ -63,6 +68,7 @@ const MultiSigner = (props) => {
         network: txn.genesisID,
         type: AllyConstants.txnTypes[txn.type],
         onComplete: AllyConstants.onCompleteTypes[txn.appOnComplete],
+        amount: txn.amount,
         // genesisHash: fromBase64(txn.genesisHash),
         // note: decode txn.note
         // tag: decode txn.tag
@@ -195,11 +201,18 @@ const MultiSigner = (props) => {
             <div>type: {txn.type}</div>
             <div>app index: {txn.appIndex}</div>
             <div>on complete: {txn.onComplete}</div>
+            { txn.amount &&
+              <div>amount: {txn.amount}</div>
+            }
             <div>fee: {txn.fee}</div>
-            <div>app args:</div>
-            {txn.appArgs.map((arg, index) => (
-              <div key={index} style={{marginLeft: "20px"}}> - {arg} </div>
-            ))}
+            { txn.appArgs &&
+              <div>
+                <div>app args:</div>
+                {txn.appArgs.map((arg, index) => (
+                  <div key={index} style={{marginLeft: "20px"}}> - {arg} </div>
+                ))}
+              </div>
+            }
             <br />
             <div>sender:</div>
             <div style={{marginLeft: "20px"}}> - {txn.address}</div>
