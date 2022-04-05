@@ -1,7 +1,13 @@
 import axios from "axios";
-
+import algosdk from "algosdk";
+import { decode } from "@msgpack/msgpack";
+import { v4 as uuidv4 } from 'uuid';
 import { AllyConstants } from "./constants";
+import { microToFloat } from "./algorand";
 
+export function uuid(){
+  return uuidv4().replace(/-/g, "");
+}
 
 export async function jsonStore(hash, data) {
   const res = await axios.post(
@@ -33,27 +39,44 @@ export function readFile(file, callback) {
   };
 }
 
-export async function uploadFile(file) {
-  const fileData = new FormData();
-  fileData.append("file", file)
+const fromBase64 = (arg) => {
+  if(arg[0] === 0){
+    const buffer = Buffer.from(arg);
+    const uint = buffer.readUIntBE(0, arg.length);
+    return uint;
+  }
+  return Buffer.from(arg, "base64").toString();
+}
 
-  const res = await axios.post(
-    "https://api.pinata.cloud/pinning/pinFileToIPFS",
-    fileData,
-    {
-      maxContentLength: "Infinity",
-      headers: {
-        "Content-Type": `multipart/form-data;boundary=${fileData._boundary}`,
-        'pinata_api_key': AllyConstants.pinataApiKey,
-        'pinata_secret_api_key': AllyConstants.pinataApiSecret
-      }
-    }
-  );
-  
-  const hash = res.data.IpfsHash;
+export function txnFromBuffer(buffer) {
+  try {
+    var { msig, txn } = decode(buffer);
+    txn = algosdk.Transaction.from_obj_for_encoding(txn);
+  } catch(error) {
+    return null;
+  }
 
   return {
-    hash: hash,
-    url: AllyConstants.pinataDownloadUrl + hash
-  }
-}
+    threshold: msig.thr,
+    cosigners: msig.subsig.map((sig) => algosdk.encodeAddress(sig.pk) ),
+
+    amount: txn.amount,
+    appIndex: txn.appIndex,
+    network: txn.genesisID.split("-")[0],
+    fee: microToFloat(txn.fee),
+    type: AllyConstants.txnTypes[txn.type],
+    address: algosdk.encodeAddress(txn.from.publicKey),
+    onComplete: AllyConstants.onCompleteTypes[txn.appOnComplete],
+    appArgs: txn.appArgs && txn.appArgs.map((arg) => fromBase64(arg)),
+    
+    // genesisHash: fromBase64(txn.genesisHash),
+    // note: decode txn.note
+    // tag: decode txn.tag
+    // lease: decode txn.lease,
+    
+    sent: false,
+    signatures: [],
+    whosigned: []
+  };
+};
+

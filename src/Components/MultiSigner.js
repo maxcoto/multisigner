@@ -4,261 +4,227 @@ import { useEffect, useState } from "react";
 import { Button } from "react-bootstrap";
 import { useHistory } from "react-router-dom";
 import { AllyConstants } from "../Utils/constants";
-import { waitForConfirmation, microToFloat } from "../Utils/algorand";
-import { jsonStore, jsonLoad, uploadFile, readFile } from "../Utils/apis";
+import { waitForConfirmation } from "../Utils/algorand";
+import { jsonStore, jsonLoad, txnFromBuffer, readFile, uuid } from "../Utils/apis";
 
 
-const MultiSigner = (props) => {
-  let history = useHistory();
+const MultiSigner = (props) => {  
   const [hash, setHash] = useState(props.hash);
   const [txn, setTxn] = useState(null);
   const [processing, setProcessing] = useState(false);
-  
   const [result, setResult] = useState({ color: "red", msg: "" });
+  const [address, setAddress] = useState(null);
+
+  let history = useHistory();
+  const tx = txn && txn.data;
+  
+  const connect = async (address) => {
+    const mainnet = tx && tx.network === "mainnet";
+    window.AlgoSigner.connect();
+    const data = await window.AlgoSigner.accounts({ ledger: mainnet ? 'MainNet' : 'TestNet' })
+    setAddress(data[0].address);
+  };
+  
+  const copy = (link) => {
+    navigator.clipboard.writeText(window.location.href);
+  };
 
   useEffect(() => {
     (async () => {
-      if(hash){
-        const txn = await jsonLoad(hash);
-        setTxn(txn);
+      if(hash && !tx){
+        setTxn(await jsonLoad(hash));
       }
     })();
-  }, [hash]);
+  }, [hash, tx]);
   
-  const fromBase64 = (arg) => {
-    if(arg[0] === 0){
-      const buffer = Buffer.from(arg);
-      const uint = buffer.readUIntBE(0, arg.length);
-      return uint;
-    }
-    return Buffer.from(arg, "base64").toString();
-  }
-  
-  const unsignedDrop = async (event) => {
+  const drop = async (event) => {
     setResult({ color: "", msg: "" });
-    var file = event.target.files[0];
+    const hash = await uuid();
+    history.push("/?" + hash);
 
     const callback = async (buffer) => {
-      try {
-        var decoded = decode(buffer);
-        var txn = algosdk.Transaction.from_obj_for_encoding(decoded.txn);
-      } catch(error) {
-        setResult({ color: "red", msg: "Wrong file." });
+      const data = txnFromBuffer(buffer);
+
+      if(!data) {
+        setResult({ color: "red", msg: "wrong file" });
         return;
       }
       
-      const uploaded = await uploadFile(file);
+      const newTxn = { buffer: Array.from(buffer), data: data };
 
-      var appArgs = null;
-      if(txn.appArgs){
-        appArgs = txn.appArgs.map((arg) => fromBase64(arg))
-      }
+      await setTxn(newTxn);
+      await setHash(hash);
 
-      const transaction = {
-        sent: false,
-        unsigned: { bin: Array.from(buffer), url: uploaded.url },
-        appIndex: txn.appIndex,
-        appArgs: appArgs,
-        fee: microToFloat(txn.fee),
-        address: algosdk.encodeAddress(txn.from.publicKey),
-        threshold: decoded.msig.thr,
-        signers: decoded.msig.subsig.map((signer) => algosdk.encodeAddress(signer.pk) ),
-        signatures: [],
-        signed: [],
-        network: txn.genesisID,
-        type: AllyConstants.txnTypes[txn.type],
-        onComplete: AllyConstants.onCompleteTypes[txn.appOnComplete],
-        amount: txn.amount,
-        // genesisHash: fromBase64(txn.genesisHash),
-        // note: decode txn.note
-        // tag: decode txn.tag
-        // lease: decode txn.lease
-      };
-
-      await jsonStore(uploaded.hash, transaction);
-      setHash(uploaded.hash);
-      setTxn(transaction);
-      history.push("/?" + uploaded.hash);
-    };
-
-    readFile(file, callback);  
-  };
-
-  const signatureDrop = async (event) => {
-    setResult({ color: "red", msg: "" });
-    var file = event.target.files[0];
-
-    const callback = async (buffer) => {
-      try {
-        var decoded = decode(buffer);
-        var subsigs = decoded.msig.subsig;
-      } catch(error) {
-        setResult({ color: "red", msg: "Wrong file." });
-        return;
-      }
-
-      var signer = "";
-      for(let i=0; i<subsigs.length; i++){
-        if(subsigs[i].s){
-          signer = algosdk.encodeAddress(subsigs[i].pk);
-        }
-      }
-
-      if(txn.signed.includes(signer)){
-        setResult({ color: "red", msg: "The signer has already signed this transaction" });
-        return;
-      }
-      
-      if(!txn.signers.includes(signer)){
-        setResult({ color: "red", msg: "The signer is not included in the allowed signers list" });
-        return;
-      }
-      
-      var cpy = {...txn};
-      cpy.signed.push(signer);
-      cpy.signatures.push(Array.from(buffer));
-
-      const json = await jsonStore(hash, cpy);
+      const json = await jsonStore(hash, newTxn);
       setTxn(json);
     };
+    
+    const file = event.target.files[0];
+    readFile(file, callback);  
+  };
+  
+  const sign = async () => {
+    setResult({ color: "red", msg: "" });
 
-    readFile(file, callback);
-  };
+    if (typeof window.AlgoSigner === "undefined") {
+      alert("AlgoSigner is not installed");
+      return;
+    }
+
+    if(txn.data.whosigned.includes(address)){
+      setResult({ color: "red", msg: "This co-signer has already signed this transaction" });
+      return;
+    }
+
+    // TODO - might be not necessary  
+    if(!txn.data.cosigners.includes(address)){
+      setResult({ color: "red", msg: "This address is not included in the co-signers list" });
+      return;
+    }
+
+    const decoded = decode(Uint8Array.from(txn.buffer));
+    const transaction = algosdk.Transaction.from_obj_for_encoding(decoded.txn);
+    const binary = transaction.toByte();
+    const base64 = window.AlgoSigner.encoding.msgpackToBase64(binary);
+    const params = { version: 1, threshold: txn.data.threshold, addrs: txn.data.cosigners };
+
+    const signed = await window.AlgoSigner.signTxn([{ txn: base64, msig: params }]);
+    const blob = signed[0].blob;
+    console.log(signed);
   
-  const download = (link) => {
-    window.open(link, "_blank");
+    txn.data.signatures.push(blob);
+    txn.data.whosigned.push(address);
+
+    const json = await jsonStore(hash, txn);
+    setTxn(json);
   };
-  
+
   const send = async () => {
     setResult({ color: "", msg: "" });
     setProcessing(true);
 
-    const txn = await jsonLoad(hash);
-    const signatures = txn.signatures.map((sign) => Uint8Array.from(sign));
-    
-    const network = txn.network.split("-")[0];
-    const { algodApiKey, algodUrl } = AllyConstants[network];
+    const { buffer, data } = await jsonLoad(hash);    
+    const { algodApiKey, algodUrl } = AllyConstants[data.network];
     const algodClient = new algosdk.Algodv2({ "X-API-Key": algodApiKey }, algodUrl, "");
-    
+
+    const signatures = data.signatures.map((sig) => window.AlgoSigner.encoding.base64ToMsgpack(sig));
+    console.log("ss2:", data.signatures);
+
     try {
-      const signedTxn = algosdk.mergeMultisigTransactions(signatures);
+      var signedTxn;
+      if(signatures.length > 1){
+        signedTxn = algosdk.mergeMultisigTransactions(signatures);  
+      } else {
+        signedTxn = signatures[0];
+      }
+
       const response = await algodClient.sendRawTransaction(signedTxn).do();
       await waitForConfirmation(algodClient, response.txId);
-
-      var cpy = {...txn};
-      cpy.sent = true;
-
-      await jsonStore(hash);
-      const msg = "Transaction " + response.txId + " confirmed in round " + response["confirmed-round"];
+      const msg = "Transaction " + response.txId + " confirmed.";
       setResult({ color: "green", msg: msg });
 
+      const json = { buffer, data: { ...data, sent: true }};
+      await jsonStore(hash, json);
     } catch (error) {
       setResult({ color: "red", msg: error.message });
     }
     
     setProcessing(false);
   };
-  
+
   return (
-    <div>  
-      <div>
-        <span className="green">Unsigned Multisig</span>
-        <span> Transaction File</span>
-      </div>
-      <br />
-      
-      { !txn &&
+    <div>
+      { !tx &&
         <div>
+          <span className="green">Unsigned Multisig</span>
+          <span> Transaction File</span>
+          <br /><br />
           <div className="upload">
             <Button className="button">Upload</Button>
-            <input type="file" onChange={(event) => unsignedDrop(event)} />
+            <input type="file" onChange={(event) => drop(event)} />
           </div>
         </div>
       }
     
-      { txn &&
+      { tx &&
         <div>
-          { true &&
-            <div>
-              <Button className="button" onClick={() => download(txn.unsigned.url)}>Download</Button>
-              
-              <a
-                className="link green"
-                href="https://www.purestake.com/blog/multisig-transaction-example-5-steps-to-sending-algo-securely/"
-                target="_blank"
-                rel="noreferrer"
-              >how can I sign offline</a><span className="green">?</span>
-            </div>
-          }
+          <Button className="button" onClick={copy}>copy to clipboard</Button>
+          <br />
+
           <div>
             <div>
               <br /><br />
-              <span className="green">Multisig</span>
-              <span> Transaction Status</span>
+              <span className="green">Multisig</span><span> Transaction</span>
             </div>
             <br />
-            <div>network: {txn.network}</div>
-            <div>type: {txn.type}</div>
-            <div>app index: {txn.appIndex}</div>
-            <div>on complete: {txn.onComplete}</div>
-            { txn.amount &&
-              <div>amount: {txn.amount}</div>
+            <div>network: {tx.network}</div>
+            <div>type: {tx.type}</div>
+            <div>app index: {tx.appIndex}</div>
+            <div>on complete: {tx.onComplete}</div>
+            { tx.amount &&
+              <div>amount: {tx.amount}</div>
             }
-            <div>fee: {txn.fee}</div>
-            { txn.appArgs &&
+            <div>fee: {tx.fee}</div>
+            { tx.appArgs &&
               <div>
                 <div>app args:</div>
-                {txn.appArgs.map((arg, index) => (
+                {tx.appArgs.map((arg, index) => (
                   <div key={index} style={{marginLeft: "20px"}}> - {arg} </div>
                 ))}
               </div>
             }
             <br />
             <div>sender:</div>
-            <div style={{marginLeft: "20px"}}> - {txn.address}</div>
+            <div style={{marginLeft: "20px"}}> - {tx.address}</div>
             <br />
-            <div>allowed signers:</div>
-            {txn.signers.map((signer, index) => (
+            <div>co-signers:</div>
+            {tx.cosigners.map((signer, index) => (
               <div key={index} style={{marginLeft: "20px"}}>
                 <span>- {signer} </span>
-                { txn.signed.includes(signer) &&
+                { tx.whosigned.includes(signer) &&
                   <span className="green">signed</span>
                 }
               </div>
             ))}
             <br />
-            <div>signatures: {txn.signatures.length}/{txn.threshold}</div>
+            <div>signatures: {tx.signatures.length}/{tx.threshold}</div>
           </div>
-          
-          { txn.threshold !== txn.signatures.length &&
+
+          <br />
+          { address &&
             <div>
-              <br /><br />
-              <div>
-                <span className="green">Add Signature</span>
-                <span> File</span>
-              </div>
               <br />
-              <div className="upload">
-                <Button className="button">Upload</Button>
-                <input type="file" onChange={(event) => signatureDrop(event)} />
-              </div>
+              <span>connected as: {address}</span>
+            </div>
+          }
+
+          { tx.threshold !== tx.signatures.length &&
+            <div>
+              <br />
+              { !address &&
+                <Button className="button" onClick={connect}>connect</Button>
+              }
+
+              { address &&
+                <Button className="button" onClick={sign}>sign</Button>
+              }
             </div>
           }
           
-          { txn.threshold === txn.signatures.length &&
+          { tx.threshold === tx.signatures.length &&
             <div>
-              { txn.sent &&
-                <div>Transaction Sent</div>
+              { tx.sent &&
+                <div className="green">This transaction has been sent</div>
               }
-              { !txn.sent &&
+              { !tx.sent &&
                 <div>
                   <div>
-                    <br /><br />
+                    <br />
                     <Button className="button" onClick={send} disabled={processing}>
                       { processing &&
                         <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                       }
-                      { processing ? " Sending..." : "Send" }
+                      { processing ? " sending..." : "send" }
                     </Button>
                   </div>
                 </div>
