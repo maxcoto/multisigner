@@ -13,16 +13,17 @@ const MultiSigner = (props) => {
   const [txn, setTxn] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState({ color: "red", msg: "" });
-  const [address, setAddress] = useState(null);
+  const [accounts, setAccounts] = useState();
+  //const [address, setAddress] = useState(null);
 
   let history = useHistory();
   const tx = txn && txn.data;
   
-  const connect = async (address) => {
+  const connect = async () => {
     const mainnet = tx && tx.network === "mainnet";
     window.AlgoSigner.connect();
-    const data = await window.AlgoSigner.accounts({ ledger: mainnet ? 'MainNet' : 'TestNet' })
-    setAddress(data[0].address);
+    const accs = await window.AlgoSigner.accounts({ ledger: mainnet ? 'MainNet' : 'TestNet' });
+    setAccounts(accs);
   };
   
   const copy = (link) => {
@@ -71,16 +72,16 @@ const MultiSigner = (props) => {
       return;
     }
 
-    if(txn.data.whosigned.includes(address)){
-      setResult({ color: "red", msg: "This co-signer has already signed this transaction" });
-      return;
-    }
+    // if(txn.data.whosigned.includes(address)){
+    //   setResult({ color: "red", msg: "This co-signer has already signed this transaction" });
+    //   return;
+    // }
 
     // TODO - might be not necessary  
-    if(!txn.data.cosigners.includes(address)){
-      setResult({ color: "red", msg: "This address is not included in the co-signers list" });
-      return;
-    }
+    // if(!txn.data.cosigners.includes(address)){
+    //   setResult({ color: "red", msg: "This address is not included in the co-signers list" });
+    //   return;
+    // }
 
     const decoded = decode(Uint8Array.from(txn.buffer));
     const transaction = algosdk.Transaction.from_obj_for_encoding(decoded.txn);
@@ -93,7 +94,7 @@ const MultiSigner = (props) => {
     console.log(signed);
   
     txn.data.signatures.push(blob);
-    txn.data.whosigned.push(address);
+    txn.data.whosigned.push(accounts.map((acc) => acc.address));
 
     const json = await jsonStore(hash, txn);
     setTxn(json);
@@ -140,7 +141,7 @@ const MultiSigner = (props) => {
           <span> Transaction File</span>
           <br /><br />
           <div className="upload">
-            <Button className="button">Upload</Button>
+            <Button className="button">upload</Button>
             <input type="file" onChange={(event) => drop(event)} />
           </div>
         </div>
@@ -191,27 +192,32 @@ const MultiSigner = (props) => {
           </div>
 
           <br />
-          { address &&
+          { accounts &&
             <div>
               <br />
-              <span>connected as: {address}</span>
+              <span>connected as:</span>
+              {accounts.map((acc, index) => (
+                <div key={index} style={{marginLeft: "20px"}}>
+                  <span>- {acc.address} </span>
+                </div>
+              ))}
             </div>
           }
 
           { tx.threshold !== tx.signatures.length &&
             <div>
               <br />
-              { !address &&
+              { !accounts &&
                 <Button className="button" onClick={connect}>connect</Button>
               }
 
-              { address &&
+              { accounts &&
                 <Button className="button" onClick={sign}>sign</Button>
               }
             </div>
           }
           
-          { tx.threshold === tx.signatures.length &&
+          { true && //tx.threshold === tx.signatures.length &&
             <div>
               { tx.sent &&
                 <div className="green">This transaction has been sent</div>
