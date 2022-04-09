@@ -89,10 +89,14 @@ const MultiSigner = (props) => {
     const base64 = window.AlgoSigner.encoding.msgpackToBase64(binary);
     const params = { version: 1, threshold: txn.data.threshold, addrs: txn.data.cosigners };
 
-    const signed = await window.AlgoSigner.signTxn([{ txn: base64, msig: params }]);
+    var validTx = { txn: base64 }
+    if( tx.msig ){
+      validTx = { ...validTx, msig: params }
+    }
+
+    const signed = await window.AlgoSigner.signTxn([validTx]);
     const blob = signed[0].blob;
-    console.log(signed);
-  
+
     txn.data.signatures.push(blob);
     txn.data.whosigned.push(accounts.map((acc) => acc.address));
 
@@ -109,7 +113,6 @@ const MultiSigner = (props) => {
     const algodClient = new algosdk.Algodv2({ "X-API-Key": algodApiKey }, algodUrl, "");
 
     const signatures = data.signatures.map((sig) => window.AlgoSigner.encoding.base64ToMsgpack(sig));
-    console.log("ss2:", data.signatures);
 
     try {
       var signedTxn;
@@ -174,19 +177,44 @@ const MultiSigner = (props) => {
                 ))}
               </div>
             }
+            { tx.appAccounts &&
+              <div>
+                <div>accounts:</div>
+                {tx.appAccounts.map((acc, index) => (
+                  <div key={index} style={{marginLeft: "20px"}}>
+                    <span>- {acc} </span>
+                  </div>
+                ))}
+              </div>
+            }
+            { tx.appAssets &&
+              <div>
+                <div>assets:</div>
+                {tx.appAssets.map((asset, index) => (
+                  <div key={index} style={{marginLeft: "20px"}}>
+                    <span>- {asset} </span>
+                  </div>
+                ))}
+              </div>
+            }
             <br />
             <div>sender:</div>
-            <div style={{marginLeft: "20px"}}> - {tx.address}</div>
+            <div style={{marginLeft: "20px"}}> - {tx.from}</div>
             <br />
-            <div>co-signers:</div>
-            {tx.cosigners.map((signer, index) => (
-              <div key={index} style={{marginLeft: "20px"}}>
-                <span>- {signer} </span>
-                { tx.whosigned.includes(signer) &&
-                  <span className="green">signed</span>
-                }
+
+            { tx.msig &&
+              <div>
+                <div>co-signers:</div>
+                {tx.cosigners.map((signer, index) => (
+                  <div key={index} style={{marginLeft: "20px"}}>
+                    <span>- {signer} </span>
+                    { tx.whosigned.includes(signer) &&
+                      <span className="green">signed</span>
+                    }
+                  </div>
+                ))}
               </div>
-            ))}
+            }
             <br />
             <div>signatures: {tx.signatures.length}/{tx.threshold}</div>
           </div>

@@ -56,19 +56,33 @@ export function txnFromBuffer(buffer) {
     return null;
   }
 
-  return {
-    threshold: msig.thr,
-    cosigners: msig.subsig.map((sig) => algosdk.encodeAddress(sig.pk) ),
+  var parsedMsig;
 
+  if(msig) {
+    parsedMsig = {
+      msig: true,
+      threshold: msig.thr,
+      cosigners: msig.subsig.map((sig) => algosdk.encodeAddress(sig.pk) ),
+    };
+  } else {
+    parsedMsig = {
+      msig: false,
+      threshold: 1,
+      cosigners: [algosdk.encodeAddress(txn.from.publicKey)],
+    }
+  }
+
+  const parsedTxn = {
     amount: txn.amount,
     appIndex: txn.appIndex,
     network: txn.genesisID.split("-")[0],
     fee: microToFloat(txn.fee),
     type: AllyConstants.txnTypes[txn.type],
-    address: algosdk.encodeAddress(txn.from.publicKey),
+    from: algosdk.encodeAddress(txn.from.publicKey),
     onComplete: AllyConstants.onCompleteTypes[txn.appOnComplete],
     appArgs: txn.appArgs && txn.appArgs.map((arg) => fromBase64(arg)),
-    
+    appAccounts: txn.appAccounts && txn.appAccounts.map((acc) => algosdk.encodeAddress(acc.publicKey)),
+    appAssets: txn.appForeignAssets,
     // genesisHash: fromBase64(txn.genesisHash),
     // note: decode txn.note
     // tag: decode txn.tag
@@ -78,5 +92,7 @@ export function txnFromBuffer(buffer) {
     signatures: [],
     whosigned: []
   };
+
+  return { ...parsedTxn, ...parsedMsig };
 };
 
