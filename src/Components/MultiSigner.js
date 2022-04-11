@@ -98,7 +98,9 @@ const MultiSigner = (props) => {
     const blob = signed[0].blob;
 
     txn.data.signatures.push(blob);
-    txn.data.whosigned.push(accounts.map((acc) => acc.address));
+    accounts.forEach((acc) => {
+      txn.data.whosigned.push(acc.address);
+    });
 
     const json = await jsonStore(hash, txn);
     setTxn(json);
