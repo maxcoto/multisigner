@@ -1,27 +1,12 @@
 # MultiSigner
 
-An Algorand multisig transaction offline signer.
+An Algorand multisig transaction offline/online signer.
 
-The process:
+It allows you to send your unsigned multisig transcation file and creates a link where all signers can join signatures and send the transaction.
 
-- You upload an unsigned multisig transaction file
+For offline signing visit the offline branch: https://offline--storied-mermaid-21135c.netlify.app/
 
-- The app gives you a link you can share with the signers
+For online signing with AlgoSigner visit: https://storied-mermaid-21135c.netlify.app/
 
-- Signers open the link, download the unsigned file
-
-- Signers sign the transaction offline using algokey or a ledger:
-
-```
-algokey multisig -t unsigned_file -o signed_file -m "signer mnemonic"
-```
-
-example:
-```
-algokey multisig -t ~/Desktop/unsigned.mtx -o ~/Desktop/signed.txn -m "reject hotel taste ... pet make head"
-```
-
-- Signers upload the signed transaction file 
-
-- You click send to send the transaction to the blockchain
+It is intended to work for multisig but it also works with single signature files.
 
